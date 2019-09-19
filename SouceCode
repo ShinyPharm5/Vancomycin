@@ -47,7 +47,12 @@ ui <- navbarPage(title = "Vancomycin Dosing", theme = shinytheme("readable"),
                     uiOutput("tab1")),
                   mainPanel(
                 tableOutput("result"),
-                uiOutput("tab"))
+                tableOutput("result4"),
+                tableOutput("result44"),
+                tableOutput("result444"),
+                uiOutput("tab"),
+                uiOutput("tab22"),
+                uiOutput("tab55"))
                 
               )
         ),
@@ -180,11 +185,20 @@ server <- function(input, output) {
     tag('i',"All doses are given at 1000mg/hr.")
   })
   
+  output$tab22 <- renderUI({
+    tag('i',"Disclaimer: This application is for educational purposes and should not replace sound clinical judgement for dosage selection.")
+  })
+  
   
   #URL for referencing publication
   url <- a("Dosing vancomycin in the super obese: less is more", href="https://academic.oup.com/jac/article/73/11/3081/5091849", target="_blank")
   output$tab <- renderUI({
     tagList("Reference:", url)
+  })
+  
+  url2 <- a("here", href="https://github.com/ShinyPharm5/Vancomycin/tree/master", target="_blank")
+  output$tab55 <- renderUI({
+    tagList("The source code for this application is available ", url2)
   })
   
   #Setting changing variables as user adjusts
@@ -417,7 +431,7 @@ server <- function(input, output) {
     }
   )
   #Rendering table using data frame with no call from button
-  output$result <- renderTable( align = "r",{
+  output$result <- renderTable( align = "l",{
     data = inputdata()
     if(data$CV == 0 || data$CV < 0.5){
       var5$LD="N/A"
@@ -465,15 +479,43 @@ server <- function(input, output) {
       var55$MD = 2250
     }
     resultTable = data.frame(
-      "Vancomycin Clearance (L/h)" = "N/A",
-      "Loading Dose (mg)" = "N/A",
-      "Maintanance Dose (mg)" = "N/A",
-      "Maitanance Dose Frequency (hr)" = "N/A"
+      "Vancomycin Clearance (L/h)" = "N/A"
     )
-    colnames(resultTable) <- c("Vancomycin Clearance (L/hr)","Loading Dose (mg)", "Maintenance Dose (mg)", "Maintenance Dose Frequency (hr)")
+    colnames(resultTable) <- c("Vancomycin Clearance (L/hr)")
     format(resultTable, justify = "centre")
     resultTable
   })
+  
+  output$result4 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Loading Dose (mg)" = "N/A"
+    )
+    colnames(resultTable) <- c("Loading Dose (mg)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$result44 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Maintanance Dose (mg)" = "N/A"
+    )
+    colnames(resultTable) <- c("Maintenance Dose (mg)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$result444 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Maintenance Dose Frequency (hr)" = "N/A"
+    )
+    colnames(resultTable) <- c("Maintenance Dose Frequency (hr)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
 
   #Render the Graph Tables Initially
   output$result2 <- renderTable( align = "r",{
@@ -640,7 +682,7 @@ server <- function(input, output) {
     )
     
   #Rendering table when button call happens
-  output$result <- renderTable(align = "r",{
+  output$result <- renderTable(align = "l",{
     data = inputdata()
     if(data$CV == 0 || data$CV < 1){
       var5$LD="N/A"
@@ -715,13 +757,40 @@ server <- function(input, output) {
       make_it$make = 0
     }
     resultTable = data.frame(
-      "Vancomycin Clearance (L/h)"= toString(data$CV),
-      "Loading Dose (mg)" = var5$LD,
-      "Maintanance Dose (mg)" = var55$MD,
-      "Maitanance Dose Frequency (hr)" = var555$FR
+      "Vancomycin Clearance (L/h)"= toString(data$CV)
     )
-    colnames(resultTable) <- c("Vancomycin Clearance (L/hr)", "Loading Dose (mg)", "Maitanance Dose (mg)", "Maitanance Dose Frequency (hr)")
+    colnames(resultTable) <- c("Vancomycin Clearance (L/hr)")
     format(resultTable, justify = "right")
+    resultTable
+  })
+  
+  output$result4 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Loading Dose (mg)" = var5$LD
+    )
+    colnames(resultTable) <- c("Loading Dose (mg)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$result44 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Loading Dose (mg)" = var55$MD
+    )
+    colnames(resultTable) <- c("Maintenance Dose (mg)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$result444 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Loading Dose (mg)" = var555$FR
+    )
+    colnames(resultTable) <- c("Maintenance Dose Frequency (hr)")
+    format(resultTable, justify = "centre")
     resultTable
   })
   
