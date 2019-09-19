@@ -1,0 +1,939 @@
+#Second part of tutorial, 9/9/2019
+#see begining part of video for list of inputfunctions, outpufunctions, and renderfunctions
+#OK, actually this is a rough draft 
+#Possible themses here https://rstudio.github.io/shinythemes/
+
+#Download the necessary libraries
+library(shiny)
+library(shinythemes)
+library(mrgsolve)
+library(ggplot2)
+library(pracma)
+library(rsconnect)
+
+library(devtools)
+Sys.setenv(PATH = paste("C:/Rtools/bin", Sys.getenv("PATH"), sep=";"))
+
+
+#install.packages('rsconnect')
+
+#rsconnect::setAccountInfo(name='trialshinyapp',
+#token='5C4A81CFA124E16791084D24357BA039',
+#secret='Bj0LuCSWJbMM4JEkgrEk1hGr6vQvGPj9DYFC39GV')
+
+#"C:/Users/kcdeback/Desktop/KensRPractice/Vancomycin"
+#library(rsconnect)
+#rsconnect::deployApp('C:/Users/kcdeback/Desktop/KensRPractice/Vancomycin')
+
+
+
+#Set up the UI
+ui <- navbarPage(title = "Vancomycin Dosing", theme = shinytheme("readable"),
+      
+    #First Panel for dossage Calculation
+      
+     tabPanel(title = "Initial Vancomycin Dose Regimen",
+              titlePanel("Initial Vancomycin Dose Regimen"),
+                sidebarLayout(
+                  sidebarPanel(   
+                    sliderInput(inputId = "age", label =  "Age (yrs)", 
+                                                 value = 54, min = 19, max = 88),
+                    sliderInput(inputId = "serum", label =  "Serum Creatinine (mg/dl)", 
+                          value = 1.4, min = .3, max = 2.5),
+                    selectInput(inputId = "gender", label =  "Gender", c("Male" = "m","Female" = "f")),
+                    sliderInput(inputId = "weight", label =  "Body Weight (kg)", 
+                          value = 185, min = 70, max = 293),
+                    actionButton(class = "btn btn-primary", inputId = "calcer", label = "Calculate Regimen", style = "margin-bottom:25px;"),
+                    uiOutput("tab1")),
+                  mainPanel(
+                tableOutput("result"),
+                uiOutput("tab"))
+                
+              )
+        ),
+     
+     #Second Panel for dossage Analysis
+     
+     tabPanel(title = "Empiric Vancomycin Dose Regimen Graph",
+              titlePanel("Empiric Vancomycin Dose Regimen Graph"),
+              sidebarLayout(
+                sidebarPanel(
+                  tableOutput("initial"),
+                  tableOutput("next1"),
+                  tableOutput("time5"),
+                  #tableOutput("amount1"),
+                  numericInput(inputId = "dose_time", "Estimate Plasma Concentration, Enter Time Since Initial Dose (hr)", 0, min = 1, max = 96),
+                  actionButton(class = "btn btn-primary", inputId = "calcer1", label = "Calculate Plasma Concentration", style = "margin-bottom:25px;"),
+                  uiOutput("tab5")
+                ),
+                mainPanel(
+                  plotOutput("plot1", height = 800),
+                  fluidRow(
+                    column(6,align = "center", tableOutput("AUC1")),
+                    column(6,align = "left",
+                  tableOutput("result2")
+                    )
+                  )
+                )
+              )
+            ),
+    tabPanel(title = "User-Determined Vancomycin Dose Regimen Graph",
+             titlePanel("User-Determined Vancomycin Dose Regimen Graph"),
+             sidebarLayout(
+               sidebarPanel(
+                 tableOutput("initial2"),
+                 tableOutput("next12"),
+                 tableOutput("time52"),
+                 uiOutput("tab56"),
+                 tags$div(style = "height:9px"),
+                 fluidRow(
+                 tags$div( style = "background: rgba(65,105,225, 0.15); border-radius: 5px; padding-left:.75vw; padding-right:.75vw;",
+                 fluidRow(column(12,numericInput(inputId = "initial_dose", "Loading Dose (mg)", 0, min = 1, max = 6000))),
+                 fluidRow(column(5,numericInput(inputId = "mait_dose1", "Mnt. Dose 1 (mg)", 0, min = 1, max = 6000)),column(7,numericInput(inputId = "mait_time1", "Time Since Ldg. Dose (hr)", 0, min = 11, max = 13))))),
+                 fluidRow(column(5,numericInput(inputId = "mait_dose2", "Mnt. Dose 2 (mg)", 0, min = 1, max = 6000)),column(7,numericInput(inputId = "mait_time2", "Time Since Mnt. Dose 1 (hr)", 0, min = 11, max = 13))),
+                 fluidRow(column(5,numericInput(inputId = "mait_dose3", "Mnt. Dose 3 (mg)", 0, min = 1, max = 6000)),column(7,numericInput(inputId = "mait_time3", "Time Since Mnt. Dose 2 (hr)", 0, min = 11, max = 13))),
+                 fluidRow(column(5,numericInput(inputId = "mait_dose4", "Mnt. Dose 4 (mg)", 0, min = 1, max = 6000)),column(7,numericInput(inputId = "mait_time4", "Time Since Mnt. Dose 3 (hr)", 0, min = 11, max = 13))),
+                 fluidRow(column(5,numericInput(inputId = "mait_dose5", "Mnt. Dose 5 (mg)", 0, min = 1, max = 6000)),column(7,numericInput(inputId = "mait_time5", "Time Since Mnt. Dose 4 (hr)", 0, min = 11, max = 13))),
+                 actionButton(class = "btn btn-primary", inputId = "make_graph", label = "Make Model", style = "margin-bottom:25px;"),
+                 numericInput(inputId = "dose_time1", "Estimate Plasma Concentration, Enter Time Since Initial Dose (hr)", 0, min = 1, max = 96),
+                 actionButton(class = "btn btn-primary", inputId = "calcer2", label = "Calculate Plasma Concentration", style = "margin-bottom:25px;"),
+                 uiOutput("tab3")
+               ), mainPanel(plotOutput("plot55", height = 800),
+                            fluidRow(
+                              column(6,align = "center", tableOutput("AUC5")),
+                              column(6,align = "left",
+                                     tableOutput("result65")
+                              )
+                            )
+                            )
+             )
+      )
+      )
+
+#Servor Side Setup
+
+server <- function(input, output) {
+  
+  #Make Reactive Values for Second Tab
+  dose5 <- reactiveValues(do = 0)
+  cp5 <- reactiveValues(cp = 0)
+  ok_2 <- reactiveValues(ok=0)
+  AUC241 <- reactiveValues(a = 0)
+  AUC481 <- reactiveValues(a = 0)
+  AUC721 <- reactiveValues(a = 0)
+  AUC961 <- reactiveValues(a = 0)
+  AUC242 <- reactiveValues(a = 0)
+  AUC482 <- reactiveValues(a = 0)
+  AUC722<- reactiveValues(a = 0)
+  AUC962 <- reactiveValues(a = 0)
+  
+  
+  #When Button is Pressed on the second panel
+  observeEvent(input$calcer1, {
+    if(ok_2$ok == 1){
+    dose5$do = input$dose_time
+    if(dose5$do == 0){
+      CP5 <- 0
+    }else{
+    CP5 <- with(data_frame5$DF,CP[time == dose5$do])
+    }
+    #reajust table
+    output$result2 <- renderTable( align = "r",{
+      data = inputdata()
+      resultTable1 = data.frame(
+        "Vancomycin Clearance (L/h)" = dose5$do,
+        "Vancomycin Clearance (L/h)" = CP5[1]
+      )
+      colnames(resultTable1) <- c("Time Since Loading Dose (hr)","Plasma Concentration (mg/L)")
+      format(resultTable1, justify = "centre")
+      resultTable1
+    })
+    
+    output$plot1 <- renderPlot({
+    g1 <- subset(data_frame5$DF,time == dose5$do)
+    ggplot(data_frame5$DF, aes(x = time, y = CP, color = "blue"), size = 5) + theme_bw() + ggtitle("Plasma Concentration-Time Curve") + theme(plot.title = element_text(size = rel(2), hjust = 0.5))+ geom_line(color = "blue", size = 1) +
+      xlab(paste("Time (hr)",sep=""))+theme(axis.text = element_text(size = rel(1.21)))+theme(axis.title.y = element_text(size = rel(1.4))) +theme(axis.title.x = element_text(size = rel(1.4)))+ geom_point(data=g1, colour="red", size = 5)+ 
+      ylab("Plasma Concentration (mg/L)") +
+       scale_x_continuous(breaks=c(0,12,24,36,48,60,72,84,96))
+    })
+    
+    }
+    
+  })
+  
+  #First Panel Server Side Setup
+  
+  #italics under input
+  output$tab1 <- renderUI({
+    tag('i',"The parameters for the variables shown are in accordance with the paraemeters of the test group in the referenced paper. Please note that this regimen calculator is only applicable for patients with Vancomycin clearance values greater than 1 and less than 10.")
+  })
+  
+  output$tab56 <- renderUI({
+    tag('i',"Please note that at least 1 maintenance dose, in addition to the loading dose, must be filled in in order for a model to be computed.")
+  })
+  
+  output$tab5 <- renderUI({
+    tag('i',"All doses are given at 1000mg/hr.")
+  })
+  
+  output$tab3 <- renderUI({
+    tag('i',"All doses are given at 1000mg/hr.")
+  })
+  
+  
+  #URL for referencing publication
+  url <- a("Dosing vancomycin in the super obese: less is more", href="https://academic.oup.com/jac/article/73/11/3081/5091849", target="_blank")
+  output$tab <- renderUI({
+    tagList("Reference:", url)
+  })
+  
+  #Setting changing variables as user adjusts
+  var <- reactiveValues(calc = 0)
+  var5 <- reactiveValues(LD = 0)
+  var55 <- reactiveValues(MD = 0)
+  var555 <- reactiveValues(FR = 0)
+  data_frame5 <- reactiveValues(DF = 0)
+  data_frame55 <- reactiveValues(DF=0)
+  ok_togo <- reactiveValues(OK = 0)
+  dose55 <- reactiveValues(do=0)
+  
+  
+  #Make calculation for tab 2
+  
+  observeEvent(input$calcer2, {
+    if(ok_togo$OK == 1){
+    dose55$do = input$dose_time1
+    if(dose55$do == 0){
+      CP51 <- 0
+    }else{
+      CP51 <- with(data_frame55$DF,CP[time == dose55$do])
+    }
+    #reajust table
+    output$result65 <- renderTable( align = "r",{
+      data = inputdata()
+      resultTable = data.frame(
+        "Vancomycin Clearance (L/h)" = dose55$do,
+        "Vancomycin Clearance (L/h)" = CP51[1]
+      )
+      colnames(resultTable) <- c("Time Since Loading Dose (hr)","Plasma Concentration (mg/L)")
+      format(resultTable, justify = "centre")
+      resultTable
+    })
+    
+    output$plot55 <- renderPlot({
+      g1 <- subset(data_frame55$DF,time == dose55$do)
+      ggplot(data_frame55$DF, aes(x = time, y = CP, color = "blue"), size = 5) + theme_bw() + ggtitle("Plasma Concentration-Time Curve") + theme(plot.title = element_text(size = rel(2), hjust = 0.5))+ geom_line(color = "blue", size = 1) +
+        xlab(paste("Time (hr)",sep=""))+geom_point(data=g1, colour="red", size = 5)+theme(axis.text = element_text(size = rel(1.21)))+theme(axis.title.y = element_text(size = rel(1.4))) +theme(axis.title.x = element_text(size = rel(1.4)))+ 
+        ylab("Plasma Concentration (mg/L)") +
+         scale_x_continuous(breaks=c(0,12,24,36,48,60,72,84,96))
+    })
+    
+    }
+    
+  })
+  
+  #Setting the Calculate Button for Tab 2
+  observeEvent(input$make_graph, {
+    proceed <- 1
+    correct_dose <- var55$MD
+    correct_time <- toString(as.integer(var55$MD)/1000)
+    if(input$initial_dose != 0 && input$mait_dose1 != 0 && input$mait_time1 != 0 && input$mait_time2 !=0 && input$mait_dose2 !=0 && input$mait_time3 !=0 && input$mait_dose3 !=0 && input$mait_time4 !=0 && input$mait_dose4 !=0 && input$mait_time5 !=0 && input$mait_dose5 !=0){
+      ok_togo$OK = 1
+      amount1 <- input$initial_dose/1000
+      amount2 <- input$mait_dose1/1000
+      amount3 <- input$mait_dose2/1000
+      amount4 <- input$mait_dose3/1000
+      amount5 <- input$mait_dose4/1000
+      amount6 <- input$mait_dose5/1000
+      frequency1 <- var555$FR
+      if(frequency1 == "12"){
+        time55 <- "1"
+      }else{
+        time55 <- "0"
+      }
+      statement <- paste(input$initial_dose," over ",amount1,"h q ",input$mait_time1, "x1 then ", input$mait_dose1," over ", amount2,"h q", input$mait_time2, "x1 then ", input$mait_dose2," over ", amount3,"h q ", input$mait_time3, "x1 then ", input$mait_dose3," over ", amount4,"h q", input$mait_time4, "x1 then ", input$mait_dose4," over ", amount5,"h q", input$mait_time5, "x1 then ",input$mait_dose5," over ", amount6) 
+
+      }else if(input$initial_dose != 0 && input$mait_dose1 != 0 && input$mait_time1 != 0 && input$mait_time2 !=0 && input$mait_dose2 !=0 && input$mait_time3 !=0 && input$mait_dose3 !=0 && input$mait_time4 !=0 && input$mait_dose4 !=0){
+      ok_togo$OK = 1
+      amount1 <- input$initial_dose/1000
+      amount2 <- input$mait_dose1/1000
+      amount3 <- input$mait_dose2/1000
+      amount4 <- input$mait_dose3/1000
+      amount5 <- input$mait_dose4/1000
+      frequency1 <- var555$FR
+      if(frequency1 == "12"){
+        time55 <- "2"
+      }else{
+        time55 <- "1"
+      }
+      statement <- paste(input$initial_dose," over ",amount1,"h q ", input$mait_time1, "x1 then ", input$mait_dose1," over ", amount2,"h q", input$mait_time2, "x1 then ", input$mait_dose2," over ", amount3,"h q", input$mait_time3, "x1 then ", input$mait_dose3," over ", amount4,"h q", input$mait_time4, "x1 then ", input$mait_dose4," over ", amount5)
+
+    }else if(input$initial_dose != 0 && input$mait_dose1 != 0 && input$mait_time1 != 0 && input$mait_time2 !=0 && input$mait_dose2 !=0 && input$mait_time3 !=0 && input$mait_dose3 !=0){
+      ok_togo$OK = 1
+      amount1 <- input$initial_dose/1000
+      amount2 <- input$mait_dose1/1000
+      amount3 <- input$mait_dose2/1000
+      amount4 <- input$mait_dose3/1000
+      frequency1 <- var555$FR
+      if(frequency1 == "12"){
+        time55 <- "3"
+      }else{
+        time55 <- "1"
+      }
+      statement <- paste(input$initial_dose," over ",amount1,"h q", input$mait_time1,  "x1 then", input$mait_dose1," over ", amount2,"h q", input$mait_time2, "x1 then ", input$mait_dose2," over ", amount3,"h q", input$mait_time3, "x1 then ", input$mait_dose3," over ", amount4)
+
+    }else if(input$initial_dose != 0 && input$mait_dose1 != 0 && input$mait_time1 != 0 && input$mait_time2 !=0 && input$mait_dose2 !=0){
+      ok_togo$OK = 1
+      amount1 <- input$initial_dose/1000
+      amount2 <- input$mait_dose1/1000
+      amount3 <- input$mait_dose2/1000
+      frequency1 <- var555$FR
+      if(frequency1 == "12"){
+        time55 <- "4"
+      }else{
+        time55 <- "2"
+      }
+      statement <- paste(input$initial_dose," over ",amount1,"h q", input$mait_time1, "x 1 then ", input$mait_dose1," over ", amount2,"h q", input$mait_time2,"x 1 then ", input$mait_dose2," over ", amount3)
+    }else if(input$initial_dose != 0 && input$mait_dose1 != 0 && input$mait_time1 != 0){
+      ok_togo$OK = 1
+      amount1 <- input$initial_dose/1000
+      amount2 <- input$mait_dose1/1000
+      frequency1 <- var555$FR
+      if(frequency1 == "12"){
+        time55 <- "4"
+      }else{
+        time55 <- "2"
+      }
+      statement <- paste(input$initial_dose," over ",amount1,"h q", input$mait_time1, "x 1 then ", input$mait_dose1," over ", amount2, sep = "")
+    }
+    else{
+      proceed <- 0
+    }
+    if(proceed == 1){
+      code<- '
+      $PARAM @annotated
+      CL   :  5.966 : Clearance (volume/time)
+      V    : 72.224 : Central volume (volume)
+      KA   :  1 : Absorption rate constant (1/time)
+      
+      $CMT  @annotated
+      EV   : Extravascular compartment
+      CENT : Central compartment
+      
+      $GLOBAL
+      #define CP (CENT/V)
+      
+      $PKMODEL ncmt = 1, depot = TRUE
+      
+      $CAPTURE @annotated
+      CP : Plasma concentration (mass/volume)
+      '
+      
+    output$plot55 <- renderPlot({
+      mod <- mcode("modified1", code)
+      
+      out <- mod %>% 
+        ev_rx(statement) %>%
+        mrgsim(end = 96, delta = 0.1) 
+      df <- as.data.frame(out)
+      data_frame55$DF = df
+      time_data <- as.vector(data_frame55$DF$time)
+      cp_data <- as.vector(data_frame55$DF$CP)
+      counter24<- 0
+      counter48 <- 0
+      counter72 <- 0
+      counter96 <-0
+      counter <- 1
+      
+      
+      while(time_data[counter] <= 24){
+        counter <- counter + 1
+      }
+      counter24 <- counter
+      while(time_data[counter] <= 48){
+        counter <- counter + 1
+        
+      }
+      counter48 <- counter
+      while(time_data[counter] <= 72){
+        counter <- counter + 1
+        
+      }
+      counter72 <- counter
+      while(time_data[counter] < 96){
+        counter <- counter + 1
+        
+      }
+      counter96 <- counter
+      
+      AUC242$a <- trapz(time_data[0:counter24], cp_data[0:counter24])
+      AUC482$a <- trapz(time_data[counter24:counter48], cp_data[counter24:counter48])
+      AUC722$a <- trapz(time_data[counter48:counter72], cp_data[counter48:counter72])
+      AUC962$a <- trapz(time_data[counter72:counter96], cp_data[counter72:counter96])
+      ggplot(df, aes(x = time, y = CP, color = "blue"), size = 5) + theme_bw() + ggtitle("Plasma Concentration-Time Curve") + theme(plot.title = element_text(size = rel(2), hjust = 0.5))+ geom_line(color = "blue", size = 1)  +
+        xlab(paste("Time (hr)",sep=""))+
+        ylab("Plasma Concentration (mg/L)") +
+        theme(axis.title.y = element_text(size = rel(1.4)))+theme(axis.text = element_text(size = rel(1.21))) +theme(axis.title.x = element_text(size = rel(1.4)))+ scale_x_continuous(breaks=c(0,12,24,36,48,60,72,84,96)) 
+      
+      
+    })
+    
+    
+    output$AUC5 <- renderTable( align = "r",{
+      data = inputdata()
+      resultTable = data.frame(
+        "Proscribed Vancomycin Clearance (L/h)" = toString(round(AUC242$a,digits = 0)),
+        "Proscribed Vancomycin Clearance (L/h)" = toString(round(AUC482$a,digits = 0)),
+        "Proscribed Vancomycin Clearance (L/h)" = toString(round(AUC722$a,digits = 0)),
+        "Proscribed Vancomycin Clearance (L/h)" = toString(round(AUC962$a,digits = 0))
+      )
+      colnames(resultTable) <- c("AUC (hr*mg/L) for 0-24 hrs","24-48 hrs","48-72 hrs","72-96 hrs")
+      format(resultTable, justify = "centre")
+      resultTable
+    })
+    
+    }
+  })
+  
+  #Sensing when user submits via the "Calculate" Button
+  observeEvent(input$calcer, {
+    ok_2$ok = 1
+    if(input$gender == "m"){
+      var2 = 1
+    }else{
+      var2 = 0
+    }
+    var5 <- signif((9.656 - (0.078 * input$age) - (2.009 * input$serum) + (1.09 * var2) + (0.04 * (input$weight)^.75)),4)
+    var$calc <-var5
+  })
+  
+  #Setting up dataframe for table with no call from button
+  inputdata <- reactive(
+    {
+      data <- data.frame(
+        CV = var$calc
+      )
+      data
+    }
+  )
+  #Rendering table using data frame with no call from button
+  output$result <- renderTable( align = "r",{
+    data = inputdata()
+    if(data$CV == 0 || data$CV < 0.5){
+      var5$LD="N/A"
+      var55$MD="N/A"
+      var555$FR = "N/A"
+    }
+    else if(data$CV >.5 && data$CV < 1.5){
+      var5$LD = 2500
+      var55$MD = 500
+    }
+    else if(data$CV >=1.5 && data$CV < 2.5){
+      var5$LD = 2500
+      var55$MD = 1000
+    }
+    else if(data$CV >=2.5 && data$CV < 3.5){
+      var5$LD = 2500
+      var55$MD = 1500
+    }
+    else if( data$CV>=3.5 && data$CV < 4.5){
+      var5$LD = 2500
+      var55$MD = 1000
+    }
+    else if( data$CV>=4.5 && data$CV < 5.5){
+      var5$LD = 2500
+      var55$MD = 1250
+    }
+    else if(data$CV >=5.5 && data$CV < 6.5){
+      var5$LD = 2500
+      var55$MD = 1500
+    }
+    else if(data$CV >=6.5 && data$CV < 7.5){
+      var5$LD = 2500
+      var55$MD = 1750
+    }
+    else if(data$CV >=7.5 && data$CV < 8.5){
+      var5$LD = 3000
+      var55$MD = 2000
+    }
+    else if(data$CV >=8.5 && data$CV < 9.5){
+      var5$LD = 3000
+      var55$MD = 2250
+    }
+    else if(data$CV >=9.5 ){
+      var5$LD = 3000
+      var55$MD = 2250
+    }
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = "N/A",
+      "Loading Dose (mg)" = "N/A",
+      "Maintanance Dose (mg)" = "N/A",
+      "Maitanance Dose Frequency (hr)" = "N/A"
+    )
+    colnames(resultTable) <- c("Vancomycin Clearance (L/hr)","Loading Dose (mg)", "Maintenance Dose (mg)", "Maintenance Dose Frequency (hr)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+
+  #Render the Graph Tables Initially
+  output$result2 <- renderTable( align = "r",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = "N/A",
+      "Vancomycin Clearance (L/h)" = "N/A"
+    )
+    colnames(resultTable) <- c("Time Since Loading Dose (hr)","Plasma Concentration (mg/L)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$result65 <- renderTable( align = "r",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = "N/A",
+      "Vancomycin Clearance (L/h)" = "N/A"
+    )
+    colnames(resultTable) <- c("Time Since Loading Dose (hr)","Plasma Concentration (mg/L)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$initial <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = "N/A"
+    )
+    colnames(resultTable) <- c("Loading Dose (mg)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$amount1 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Number of doses" = "N/A"
+    )
+    colnames(resultTable) <- c("Number of Doses Shown in Model (Including Loading Dose)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$amount15 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Number of doses" = "N/A"
+    )
+    colnames(resultTable) <- c("Number of Doses Shown in Model (Including Loading Dose)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$next1 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = "N/A"
+    )
+    colnames(resultTable) <- c("Maintenance Dose (mg)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$amount1 <- renderTable( align = "l",{
+    data = inputdata()
+    if(var555$FR == "12"){
+      resultTable = data.frame(
+        "Vancomycin Clearance (L/hr)" = "7"
+      )
+    }
+    else{
+      resultTable = data.frame(
+        "Vancomycin Clearance (L/hr)" = "4"
+      )
+    }
+    colnames(resultTable) <- c("Number of Doses Shown in Model (Including Loading Dose)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$time5 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = "N/A"
+    )
+    colnames(resultTable) <- c("Maintenance Dose Frequency (hr)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  #Second Tab Table 
+  output$initial2 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = "N/A"
+    )
+    colnames(resultTable) <- c("Prescribed Loading (Ldg.) Dose (mg)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$next12 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = "N/A"
+    )
+    colnames(resultTable) <- c("Prescribed Maintenance (Mnt.) Dose (mg)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  
+  
+  output$time52 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Proscribed Vancomycin Clearance (L/h)" = "N/A"
+    )
+    colnames(resultTable) <- c("Prescribed Maintenance (Mnt.) Dose Frequency (hr)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  
+  output$AUC1 <- renderTable( align = "r",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Proscribed Vancomycin Clearance (L/h)" = "N/A",
+      "Proscribed Vancomycin Clearance (L/h)" = "N/A",
+      "Proscribed Vancomycin Clearance (L/h)" = "N/A",
+      "Proscribed Vancomycin Clearance (L/h)" = "N/A"
+    )
+    colnames(resultTable) <- c("AUC (hr*mg/L) for 0-24 hrs","24-48 hrs","48-72 hrs","72-96 hrs")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$AUC5 <- renderTable( align = "r",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Proscribed Vancomycin Clearance (L/h)" = "N/A",
+      "Proscribed Vancomycin Clearance (L/h)" = "N/A",
+      "Proscribed Vancomycin Clearance (L/h)" = "N/A",
+      "Proscribed Vancomycin Clearance (L/h)" = "N/A"
+    )
+    colnames(resultTable) <- c("AUC (hr*mg/L) for 0-24 hrs","24-48 hrs","48-72 hrs","72-96 hrs")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  make_it <- reactiveValues(make = 1)
+  #Setting up datframe when button call happens
+  observeEvent(input$calcer, {
+    
+    
+    inputdata <- reactive(
+      {
+        data <- data.frame(
+          CV = var$calc
+        )
+        data
+      }
+    )
+    
+  #Rendering table when button call happens
+  output$result <- renderTable(align = "r",{
+    data = inputdata()
+    if(data$CV == 0 || data$CV < 1){
+      var5$LD="N/A"
+      var55$MD="N/A"
+      var555$FR = "N/A"
+      make_it$make = 0
+    }
+    else if(data$CV >=1 && data$CV < 1.5){
+      var5$LD = "2500"
+      var55$MD = "500"
+      var555$FR = "24"
+      make_it$make = 1
+    }
+    else if(data$CV >=1.5 && data$CV < 2.5){
+      var5$LD = "2500"
+      var55$MD = "1000"
+      var555$FR = "24"
+      make_it$make = 1
+    }
+    else if(data$CV >=2.5 && data$CV < 3.5){
+      var5$LD = "2500"
+      var55$MD = "1500"
+      var555$FR = "24"
+      make_it$make = 1
+    }
+    else if( data$CV>=3.5 && data$CV < 4.5){
+      var5$LD = "2500"
+      var55$MD = "1000"
+      var555$FR = "12"
+      make_it$make = 1
+    }
+    else if( data$CV>=4.5 && data$CV < 5.5){
+      var5$LD = "2500"
+      var55$MD = "1250"
+      var555$FR = "12"
+      make_it$make = 1
+    }
+    else if(data$CV >=5.5 && data$CV < 6.5){
+      var5$LD = "2500"
+      var55$MD = "1500"
+      var555$FR = "12"
+      make_it$make = 1
+    }
+    else if(data$CV >=6.5 && data$CV < 7.5){
+      var5$LD = "2500"
+      var55$MD = "1750"
+      var555$FR = "12"
+      make_it$make = 1
+    }
+    else if(data$CV >=7.5 && data$CV < 8.5){
+      var5$LD = "3000"
+      var55$MD = "2000"
+      var555$FR = "12"
+      make_it$make = 1
+    }
+    else if(data$CV >=8.5 && data$CV < 9.5){
+      var5$LD = "3000"
+      var55$MD = "2250"
+      var555$FR = "12"
+      make_it$make = 1
+    }
+    else if(data$CV >=9.5 && data$CV < 10){
+      var5$LD = "3000"
+      var55$MD = "2250"
+      var555$FR = "12"
+      make_it$make = 1
+    }
+    else if(data$CV >=10){
+      var5$LD = "3000"
+      var55$MD = "2250"
+      var555$FR = "N/A"
+      make_it$make = 0
+    }
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)"= toString(data$CV),
+      "Loading Dose (mg)" = var5$LD,
+      "Maintanance Dose (mg)" = var55$MD,
+      "Maitanance Dose Frequency (hr)" = var555$FR
+    )
+    colnames(resultTable) <- c("Vancomycin Clearance (L/hr)", "Loading Dose (mg)", "Maitanance Dose (mg)", "Maitanance Dose Frequency (hr)")
+    format(resultTable, justify = "right")
+    resultTable
+  })
+  
+  #Render the Graph Tables Initially
+  output$initial <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = var5$LD
+    )
+    colnames(resultTable) <- c("Loading Dose (mg)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$next1 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = var55$MD
+    )
+    colnames(resultTable) <- c("Maintenance Dose (mg)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  
+  
+  output$time5 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = var555$FR
+    )
+    colnames(resultTable) <- c("Maintenance Dose Frequency (hr)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  
+  #render for Second Tab
+  output$initial2 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = var5$LD
+    )
+    colnames(resultTable) <- c("Prescribed Loading (Ldg.) Dose (mg)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$next12 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = var55$MD
+    )
+    colnames(resultTable) <- c("Prescribed Maintenance (Mnt.) Dose (mg)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$time52 <- renderTable( align = "l",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = var555$FR
+    )
+    colnames(resultTable) <- c("Prescribed Maintenance (Mnt.) Dose Frequency (hr)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  output$amount15 <- renderTable( align = "l",{
+    data = inputdata()
+    if(var555$FR == "12"){
+    resultTable = data.frame(
+      "Vancomycin Clearance (L/h)" = "7"
+    )
+    }
+    else{Project1.R
+      resultTable = data.frame(
+        "Vancomycin Clearance (L/h)" = "4"
+      )
+    }
+    colnames(resultTable) <- c("Number of Doses Shown in Model (Including Loading Dose)")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  #Render Plot with Button Call
+  
+  code<- '
+  $PARAM @annotated
+  CL   :  5.966 : Clearance (volume/time)
+  V    : 72.224 : Central volume (volume)
+  KA   :  1 : Absorption rate constant (1/time)
+  
+  $CMT  @annotated
+  EV   : Extravascular compartment
+  CENT : Central compartment
+  
+  $GLOBAL
+  #define CP (CENT/V)
+  
+  $PKMODEL ncmt = 1, depot = TRUE
+  
+  $CAPTURE @annotated
+  CP : Plasma concentration (mass/volume)
+  '
+  
+  output$plot1 <- renderPlot({
+    if(make_it$make == 1){
+    mod <- mcode("modified1", code)
+    
+    intial_dose = var5$LD
+    maitanance_dose <- var55$MD
+    frequency1 <- var555$FR
+    time_to_give1 <- toString(as.integer(var5$LD)/1000)
+    time_to_give2 <- toString(as.integer(var55$MD)/1000)
+    if(frequency1 == "12"){
+      time55 <- "6"
+    }else{
+      time55 <- "3"
+    }
+    statement <- paste(intial_dose," over ",time_to_give1,"h q ", frequency1,"x 1 then ", maitanance_dose," over ", time_to_give2,"h q ", frequency1, " x ", time55, sep = "")
+    
+    #statement <- intial_dose + " over " + time_to_give1 + "h then " + maitanance_dose + " over " + time_to_give2 + "h q " + frequency1 + " x " + time55
+    #Update the parameters for the model according to the paper
+    mod %>% param(CL = 5.966, V = 72.224) %>% param
+    
+    out <- mod %>% 
+      ev_rx(statement) %>%
+      mrgsim(end = 96, delta = 0.1) 
+    df <- as.data.frame(out)
+    data_frame5$DF = df
+    time_data <- as.vector(data_frame5$DF$time)
+    cp_data <- as.vector(data_frame5$DF$CP)
+    
+    counter24<- 0
+    counter48 <- 0
+    counter72 <- 0
+    counter96 <-0
+    counter <- 1
+    
+    
+    while(time_data[counter] <= 24){
+      counter <- counter + 1
+    }
+    counter24 <- counter
+    while(time_data[counter] <= 48){
+      counter <- counter + 1
+      
+    }
+    counter48 <- counter
+    while(time_data[counter] <= 72){
+      counter <- counter + 1
+      
+    }
+    counter72 <- counter
+    while(time_data[counter] < 96){
+      counter <- counter + 1
+      
+    }
+    counter96 <- counter
+    
+    AUC241$a <- trapz(time_data[0:counter24], cp_data[0:counter24])
+    AUC481$a <- trapz(time_data[counter24:counter48], cp_data[counter24:counter48])
+    AUC721$a <- trapz(time_data[counter48:counter72], cp_data[counter48:counter72])
+    AUC961$a <- trapz(time_data[counter72:counter96], cp_data[counter72:counter96])
+    
+    ggplot(df, aes(x = time, y = CP, color = "blue"), size = 5) + theme_bw() + ggtitle("Plasma Concentration-Time Curve") + theme(plot.title = element_text(size = rel(2), hjust = 0.5))+ geom_line(color = "blue", size = 1) +
+      xlab(paste("Time (hr)",sep=""))+theme(axis.text = element_text(size = rel(1.21)))+theme(axis.title.y = element_text(size = rel(1.4))) +theme(axis.title.x = element_text(size = rel(1.4)))+
+      ylab("Plasma Concentration (mg/L)") +
+       scale_x_continuous(breaks=c(0,12,24,36,48,60,72,84,96))
+    
+    } 
+  })
+  
+  
+  output$AUC1 <- renderTable( align = "r",{
+    data = inputdata()
+    resultTable = data.frame(
+      "Proscribed Vancomycin Clearance (L/h)" = toString(round(AUC241$a,digits = 0)),
+      "Proscribed Vancomycin Clearance (L/h)" = toString(round(AUC481$a,digits = 0)),
+      "Proscribed Vancomycin Clearance (L/h)" = toString(round(AUC721$a,digits = 0)),
+      "Proscribed Vancomycin Clearance (L/h)" = toString(round(AUC961$a,digits = 0))
+    )
+   colnames(resultTable) <- c("AUC (hr*mg/L) for 0-24 hrs","24-48 hrs","48-72 hrs","72-96 hrs")
+    format(resultTable, justify = "centre")
+    resultTable
+  })
+  
+  
+  })
+  
+
+  
+  #Render the plot using mrgsolve independemt of click
+  output$plot1 <- renderPlot({
+    ggplot() + theme_bw() + ggtitle("Plasma Concentration-Time Curve") + theme(plot.title = element_text(size = rel(2), hjust = 0.5))+
+      xlab(paste("Time (hr)",sep=""))+
+      ylab("Plasma Concentration (mg/L)") +
+      theme(axis.title.y = element_text(size = rel(1.4)))+theme(axis.text = element_text(size = rel(1.21))) +theme(axis.title.x = element_text(size = rel(1.4))) + scale_x_continuous(breaks=c(0,12,24,36,48,60,72,84,96)) 
+  })
+  
+  output$plot55 <- renderPlot({
+    ggplot() + theme_bw()+  ggtitle("Plasma Concentration-Time Curve") + theme(plot.title = element_text(size = rel(2), hjust = 0.5))+
+      xlab(paste("Time (hr)",sep=""))+
+      ylab("Plasma Concentration (mg/L)") +
+      theme(axis.title.y = element_text(size = rel(1.4)))+theme(axis.text = element_text(size = rel(1.21))) +theme(axis.title.x = element_text(size = rel(1.4)))+ scale_x_continuous(breaks=c(0,12,24,36,48,60,72,84,96)) 
+  })
+  
+}
+
+#Putting App Together
+
+
+
+shinyApp(ui = ui, server = server)
