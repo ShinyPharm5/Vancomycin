@@ -21,9 +21,8 @@ Sys.setenv(PATH = paste("C:/Rtools/bin", Sys.getenv("PATH"), sep=";"))
 #token='5C4A81CFA124E16791084D24357BA039',
 #secret='Bj0LuCSWJbMM4JEkgrEk1hGr6vQvGPj9DYFC39GV')
 
-#"C:/Users/kcdeback/Desktop/KensRPractice/Vancomycin"
 #library(rsconnect)
-#rsconnect::deployApp('C:/Users/kcdeback/Desktop/KensRPractice/Vancomycin')
+#rsconnect::deployApp('C:/Users/kcdeback/Desktop/Vancomycin_ShinyApp/Vancomycin')
 
 
 
@@ -324,10 +323,10 @@ server <- function(input, output) {
       proceed <- 0
     }
     if(proceed == 1){
-      code<- '
+      code<- paste('
       $PARAM @annotated
-      CL   :  5.966 : Clearance (volume/time)
-      V    : 72.224 : Central volume (volume)
+      CL   :  ', toString(var$calc) ,': Clearance (volume/time)
+      V    : 75 : Central volume (volume)
       KA   :  1 : Absorption rate constant (1/time)
       
       $CMT  @annotated
@@ -341,8 +340,8 @@ server <- function(input, output) {
       
       $CAPTURE @annotated
       CP : Plasma concentration (mass/volume)
-      '
-      
+      ')
+
     output$plot55 <- renderPlot({
       mod <- mcode("modified1", code)
       
@@ -878,25 +877,25 @@ server <- function(input, output) {
   
   #Render Plot with Button Call
   
-  code<- '
-  $PARAM @annotated
-  CL   :  5.966 : Clearance (volume/time)
-  V    : 72.224 : Central volume (volume)
-  KA   :  1 : Absorption rate constant (1/time)
-  
-  $CMT  @annotated
-  EV   : Extravascular compartment
-  CENT : Central compartment
-  
-  $GLOBAL
-  #define CP (CENT/V)
-  
-  $PKMODEL ncmt = 1, depot = TRUE
-  
-  $CAPTURE @annotated
-  CP : Plasma concentration (mass/volume)
-  '
-  
+  code<- paste('
+               $PARAM @annotated
+               CL   :  ', toString(var$calc) ,': Clearance (volume/time)
+               V    : 75 : Central volume (volume)
+               KA   :  1 : Absorption rate constant (1/time)
+               
+               $CMT  @annotated
+               EV   : Extravascular compartment
+               CENT : Central compartment
+               
+               $GLOBAL
+               #define CP (CENT/V)
+               
+               $PKMODEL ncmt = 1, depot = TRUE
+               
+               $CAPTURE @annotated
+               CP : Plasma concentration (mass/volume)
+               ')
+
   output$plot1 <- renderPlot({
     if(make_it$make == 1){
     mod <- mcode("modified1", code)
