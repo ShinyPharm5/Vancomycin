@@ -15,6 +15,14 @@ library(devtools)
 Sys.setenv(PATH = paste("C:/Rtools/bin", Sys.getenv("PATH"), sep=";"))
 
 
+#install.packages('rsconnect')
+
+#rsconnect::setAccountInfo(name='trialshinyapp',
+#token='5C4A81CFA124E16791084D24357BA039',
+#secret='Bj0LuCSWJbMM4JEkgrEk1hGr6vQvGPj9DYFC39GV')
+
+#library(rsconnect)
+#rsconnect::deployApp('C:/Users/kcdeback/Desktop/Vancomycin_ShinyApp/Vancomycin')
 
 
 
@@ -126,6 +134,7 @@ server <- function(input, output) {
   
   #When Button is Pressed on the second panel
   observeEvent(input$calcer1, {
+    if(var$calc >1 && var$calc < 10){
     if(ok_2$ok == 1){
     dose5$do = input$dose_time
     if(dose5$do == 0){
@@ -154,7 +163,7 @@ server <- function(input, output) {
     })
     
     }
-    
+    }
   })
   
   #First Panel Server Side Setup
@@ -239,6 +248,7 @@ server <- function(input, output) {
   
   #Setting the Calculate Button for Tab 2
   observeEvent(input$make_graph, {
+    if(var$calc >1 && var$calc < 10){
     proceed <- 1
     correct_dose <- var55$MD
     correct_time <- toString(as.integer(var55$MD)/1000)
@@ -397,6 +407,7 @@ server <- function(input, output) {
       resultTable
     })
     
+    }
     }
   })
   
