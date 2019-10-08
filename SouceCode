@@ -15,14 +15,6 @@ library(devtools)
 Sys.setenv(PATH = paste("C:/Rtools/bin", Sys.getenv("PATH"), sep=";"))
 
 
-#install.packages('rsconnect')
-
-#rsconnect::setAccountInfo(name='trialshinyapp',
-#token='5C4A81CFA124E16791084D24357BA039',
-#secret='Bj0LuCSWJbMM4JEkgrEk1hGr6vQvGPj9DYFC39GV')
-
-#library(rsconnect)
-#rsconnect::deployApp('C:/Users/kcdeback/Desktop/Vancomycin_ShinyApp/Vancomycin')
 
 
 
